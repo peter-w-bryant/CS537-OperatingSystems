@@ -1,0 +1,82 @@
+﻿Part - B
+We'll be doing kernel hacking projects in xv6, a port of a classic version of Unix to a modern processor, Intel's x86. It is a clean and small kernel.
+This first project is intended to be a warmup, and thus relatively light. You will not write many lines of code for this project. Instead, a lot of your time will be spent learning where different routines are located in the existing source code. 
+The objectives of this project are:
+* Gain comfort looking through more substantial code bases written by others in which you do not need to understand every line
+* Obtain familiarity with the xv6 code base in particular
+* Learn how to add a system call to xv6 
+* Add a user-level application that can be used within xv6
+* Become familiar with a few of the data structures in xv6 (e.g., process table)
+* Use the gdb debugger on xv6 
+This is an individual project. You have a total of THREE slip days that can be used throughout the semester for late projects; you can use some of those days for this project, but we hope you can save them!
+Code Base
+You will be using the current version of xv6. Copy the xv6 source code using the following commands:
+prompt> cp /p/course/cs537-swift/public/xv6.tar.gz .
+prompt> tar -xvf xv6.tar.gz
+If, for development and testing, you would like to run xv6 in an environment other than the CSL instructional Linux cluster, you may need to set up additional software. You can read these instructions for the MacOS build environment. 
+ (Links to an external site.)
+Note that we will run all of our tests and do our grading on the instructional Linux cluster so you should always ensure that the final code you handin works on those machines.
+After you have obtained the source files, you can run make qemu-nox  to compile all the code and run it using the QEMU emulator. Test out the unmodified code by running a few of the existing user-level applications, like ls  and forktest. With ls inside the emulator, you'll be able to see a few other applications that are available (as well as files that have been created within the xv6 environment).
+To quit the emulator, type Ctl-a x.
+You will want to be familiar with the Makefile and comfortable modifying it. In particular, see the list of existing UPROGS. See the different ways of running the environment through make (e.g., qemu-nox or qemu-nox-gdb). 
+Find where the number of CPUS is set and change this to be 1.
+For additional information about xv6, we strongly encourage you to look through the code while reading this book 
+ (Links to an external site.)
+by the xv6 authors. 
+Or, if you prefer to watch videos, the last ten minutes of the  first video 
+ (Links to an external site.)
+ plus a  2nd video from a previous discussion section 
+ (Links to an external site.)
+describe some of the relevant files. Note that the code and project in the videos do not exactly match what you are doing. We always recommend that you look at the actual code yourself while either reading or watching (perhaps pausing the video as needed).
+Debugging
+Your first task is to demonstrate that you can use gdb to debug xv6 code. You should show the integer value that fdalloc() (in sysfile.c) returns the first time it is called after a process has been completely initialized.
+To do this, you can follow these steps:
+1. In one window, start up qemu-nox-gdb (using make). This will automatically create a .gdbinit file under your current working directory.
+2. Open another window on the same machine and go to the same working directory. Traditionally gdb will automatically load the .gdbinit file under the current working directory and debug xv6 in QEMU. However, in recent versions, this feature is removed for security reasons (e.g. you do not want to load .gdbinit file left by someone else). You have two options to manually enable this:
+   * echo "add-auto-load-safe-path $(pwd)/.gdbinit" >> ~/.gdbinit. This enables the autoloading of the .gdbinit in the current working directory.
+   * echo "set auto-load safe-path /" >> ~/.gdbinit. This enables the autoloading of all .gdbinit.
+3. Start up gdb and continue it until xv6 finishes its bootup process and gives you a prompt.
+4. Now, interrupt (Ctrl+C) gdb and set a breakpoint in the fdalloc() routine.
+5. Continue gdb, and run the stressfs user application at the xv6 prompt since this will cause fdalloc() to be called. Your gdb process should now have stopped in fdalloc.
+6. step (or, probably next) through the C code until gdb reaches the point just before fdalloc() returns and print the value that will be returned (i.e., the value of fd).
+7. Immediately quit gdb and run whoami to display your login name.
+If gdb gives you the error message that fd has been optimized out and cannot be displayed, make sure that your Makefile uses the flag "-Og" instead of "-O2". Debugging is also a lot easier with a single CPU, so if you didn't do this already: in your Makefile find where the number of CPUS is set and change this to be 1.
+Take a screenshot showing your gdb session with the returned value of fd printed and your login name displayed. Submit this screenshot to Canvas.
+System Calls and User-Level Application
+You will add a new system call named int getiocounts(struct iostat* iostat) to xv6. When it is called, it finds the numbers of times read() and write() are called by the current running process, and fills in the iostat struct pointed to by the parameter passed into this system call with these numbers . It should return 0 on success and -1 if the iostat pointer is invalid. In particular, struct iostat is defined as: 
+struct iostat {
+    int readcount;  // total number of times read() is invoked by the current running process (including failed calls)
+    int writecount; // total number of times write() is invoked by the current running process (including failed calls)
+}
+
+
+So that you can test your system calls, you should also create a user-level application with the following behavior:
+* sysios m n. This program takes two arguments: m, which is the total number of read() that it should call, and n, which is the number of write() it should call. You can perform those I/O system calls in any order you choose and you can read() or write() to any file you like (or even pass in invalid parameters to make them fail intentionally). After this work has been done, it should print out three values: the value returned by getiocounts(struct iostat* iostat) and the two integer values in iostat indicating the number of times read() and write() are invoked. For example, if you run the program as "sysios 5 6" the output should be exactly "0 5 6\n". We will not test it with invalid arguments. 
+You must use the names of the system call and the application exactly as specified! 
+Note
+* In xv6, functions that output data to console (e.g., printf()) internally calls write(). Be careful when you are implementing sysios.
+Implementation Hints and Details
+The primary files you will want to examine in detail include syscall.c, proc.c, proc.h, and sysfile.c. You might also want to take a look at usys.S, which (unfortunately) is written in assembly.
+To add a system call, find some other very simple system call like sys_fstat that also takes a pointer parameter, copy it in all the ways you think are needed, and modify it so it doesn't do anything and has the new name. Compile the code to see if you found everything you need to copy and change. You probably won't find everything the first time you try.
+Then think about the changes that you will need to make so your system call act like itself.
+* How to find the current running process? Many other system calls also need to figure out which process is the current running process. An easy one to look at is sys_getpid.
+* How will you track the number of read() and write() made by the current running process? Since xv6 performs context switch for fair scheduling, this means you need to keep two counters for each individual process, one for read() and one for write(). These two counters will be added to a structure that already exists for each process, and getiocounts() simply fills these two counters into iostat. 
+* Remember to zero-initialize the counters when a process is created. Check out proc.c to see when and how other fields (e.g., pid) are initialized for each process. 
+* The reason getiocounts() takes a pointer to a struct iostat instead of returning a pointer to struct iostat is that memory in kernel space cannot be accessed directly from userspace. Hence the user is responsible for memory allocation and kernel can fill in the allocated memory with meaningful data.
+* Make sure you increment the appropriate counter at the beginning of read() and write() so that it also counts the failed calls.
+* Remember that you will need to include struct iostat in both kernel space and userspace. A good example you can look at is struct stat used by fstat().
+For this project, you do not need to worry about concurrency and locking (think about why). Concurrency means running and managing multiple processes at the same time, and locking provides isolation so that certain resources are only accessed by the process holding the lock. You do not need to fully understand these as we will discuss concurrency and locking later in the semester.
+To create the user-level application sysios we again suggest copying one of the straight-forward utilities that already exist. If you cannot find your user-level application inside xv6, one possible reason is that your application is not compiled into xv6. One easy way to check that is to write some invalid code and see if xv6 still compiles. 
+Good luck! While the xv6 code base might seem intimidating at first, you only need to understand very small portions of it for this project. This project is very doable!
+Handing It In
+Remember there are two handin steps.
+For your xv6 code, your handin directory is /p/course/cs537-swift/turnin/LOGIN/p1b where LOGIN is your CS login. Please create a subdirectory /p/course/cs537-swift/turnin/LOGIN/p1b/ontime/src.
+And copy all of your source files (but not .o files or binaries!) into this directory. 
+prompt> mkdir -p /p/course/cs537-swift/turnin/LOGIN/p1b/ontime/src
+prompt> cp -r xv6-public/* /p/course/cs537-swift/turnin/LOGIN/p1b/ontime/src
+prompt> cd /p/course/cs537-swift/turnin/LOGIN/p1b/ontime/src
+prompt> make
+prompt> make clean
+See p1 specification for the late submission/slip days protocol.
+All the public tests are provided at /p/course/cs537-swift/tests/p1b . To read more detail about how to run the tests, you can execute the command  cat /p/course/cs537-swift/tests/p1b/README.md on any CSL machine. Note that there will be a few amount of hidden test cases, and therefore you are encouraged to create your own test cases instead of relying on the public tests.
+For your screenshot of your debugging session, upload your image here in Canvas.
